@@ -1,10 +1,12 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.UI;
+using System;
+using TMPro;
+using System.Linq;
 
 public class SimpleIslandGenerator : MonoBehaviour
 {
-    public Dictionary<Vector2Int, Cell> cellsDictionary = new Dictionary<Vector2Int, Cell>();
-
     [Header("Размеры острова")]
     public int width = 15;
     public int height = 15;
@@ -24,6 +26,8 @@ public class SimpleIslandGenerator : MonoBehaviour
     public GameObject groundTilePrefab;
 
     [Header("Ресурсы")]
+    public TextMeshProUGUI countTrees;
+    public TextMeshProUGUI countStone;
     public GameObject treePrefab;
     public GameObject stonePrefab;
     public int treeCount = 10;
@@ -33,20 +37,38 @@ public class SimpleIslandGenerator : MonoBehaviour
     public float resourceHeight = 0.2f;
     public float minDistanceBetweenResources = 0.5f;
 
-    // Список для хранения позиций ресурсов
-    private List<Vector3> resourcePositions = new List<Vector3>();
+    // Обновленный словарь для хранения ресурсов и их позиций
+    public Dictionary<GameObject, Vector3> resources = new Dictionary<GameObject, Vector3>();
 
-    [ContextMenu("Сгенерировать новый остров")]
+    // Дополнительный словарь для отслеживания типов ресурсов
+    private Dictionary<GameObject, ResourceType> resourceTypes = new Dictionary<GameObject, ResourceType>();
+
+    // Ссылка на менеджер удаления
+    private DeleteModeManager deleteModeManager;
+
+    // Типы ресурсов
+    public enum ResourceType
+    {
+        Tree,
+        Stone
+    }
+
+    void Start()
+    {
+        // Находим менеджер удаления
+        deleteModeManager = FindObjectOfType<DeleteModeManager>();
+
+        // Обновляем счетчики
+        UpdateResourceCounters();
+    }
+
     public void GenerateIsland()
     {
-        // Очищаем старые клетки
-        while (transform.childCount > 0)
-        {
-            DestroyImmediate(transform.GetChild(0).gameObject);
-        }
+        countTrees.text = $"{treeCount}";
+        countStone.text = $"{stoneCount}";
 
-        // Очищаем список ресурсов
-        resourcePositions.Clear();
+        // Очищаем старые клетки и ресурсы
+        ClearIsland();
 
         // Центр острова в координатах сетки
         Vector2 center = new Vector2(width / 2f, height / 2f);
@@ -120,7 +142,6 @@ public class SimpleIslandGenerator : MonoBehaviour
             {
                 if (isLand[x, y])
                 {
-                    // Добавляем startX и startZ к позиции
                     Vector3 position = new Vector3(
                         startX + x * cellSize,
                         0,
@@ -130,16 +151,6 @@ public class SimpleIslandGenerator : MonoBehaviour
                     GameObject cell = Instantiate(groundTilePrefab, position, Quaternion.identity, transform);
                     cell.transform.position = new Vector3(position.x, 0.1f, position.z);
                     cell.name = $"Cell_{x}_{y}";
-
-                    Cell cellComponent = cell.AddComponent<Cell>();
-                    cellComponent.gridPosition = new Vector2Int(x, y);
-
-                    /*if ( тут проверка на ресурс )
-                    {
-                        cellComponent.resource = ResourceType.Tree; // или Stone
-                    }*/
-
-                    cellsDictionary[new Vector2Int(x, y)] = cellComponent;
                 }
             }
         }
@@ -155,17 +166,17 @@ public class SimpleIslandGenerator : MonoBehaviour
         // Генерируем деревья
         for (int i = 0; i < treeCount; i++)
         {
-            TryPlaceResource(treePrefab, isLand);
+            TryPlaceResource(treePrefab, isLand, ResourceType.Tree);
         }
 
         // Генерируем камни
         for (int i = 0; i < stoneCount; i++)
         {
-            TryPlaceResource(stonePrefab, isLand);
+            TryPlaceResource(stonePrefab, isLand, ResourceType.Stone);
         }
     }
 
-    void TryPlaceResource(GameObject resourcePrefab, bool[,] isLand)
+    void TryPlaceResource(GameObject resourcePrefab, bool[,] isLand, ResourceType type)
     {
         int maxAttempts = 1000;
         int attempts = 0;
@@ -174,49 +185,45 @@ public class SimpleIslandGenerator : MonoBehaviour
         {
             attempts++;
 
-            // Выбираем случайную клетку
-            int x = Random.Range(0, width);
-            int y = Random.Range(0, height);
+            int x = UnityEngine.Random.Range(0, width);
+            int y = UnityEngine.Random.Range(0, height);
 
-            // Проверяем, что это суша
             if (isLand[x, y])
             {
-                // Вычисляем позицию в пределах клетки с учетом startX и startZ
-                float offsetX = Random.Range(-0.4f, 0.4f) * cellSize;
-                float offsetZ = Random.Range(-0.4f, 0.4f) * cellSize;
-
                 Vector3 resourcePos = new Vector3(
-                    startX + x * cellSize + offsetX,
+                    startX + x,
                     resourceHeight,
-                    startZ + y * cellSize + offsetZ
+                    startZ + y
                 );
 
-                // Проверяем, не слишком близко к другим ресурсам
-                bool tooClose = false;
-                foreach (Vector3 pos in resourcePositions)
-                {
-                    if (Vector3.Distance(resourcePos, pos) < minDistanceBetweenResources)
-                    {
-                        tooClose = true;
-                        break;
-                    }
-                }
-
-                if (!tooClose)
+                if (resources.Values.Contains(resourcePos))
+                    continue;
+                else
                 {
                     // Создаем ресурс
                     GameObject resource = Instantiate(resourcePrefab, resourcePos, Quaternion.identity, transform);
 
-                    // Случайный поворот
-                    resource.transform.rotation = Quaternion.Euler(0, Random.Range(0, 360), 0);
+                    // Добавляем компонент DeletableObject
+                    DeletableObject deletable = resource.AddComponent<DeletableObject>();
+                    deletable.objectType = type == ResourceType.Tree ?
+                        DeletableObject.ObjectType.Tree :
+                        DeletableObject.ObjectType.Stone;
 
-                    // Добавляем в список
-                    resourcePositions.Add(resourcePos);
+
+                    // Настраиваем визуальные эффекты (опционально)
+                    // deletable.highlightColor = Color.red;
+
+                    // Случайный поворот
+                    resource.transform.rotation = Quaternion.Euler(0, UnityEngine.Random.Range(0, 360), 0);
+
+                    // Сохраняем в словари
+                    resources.Add(resource, resourcePos);
+                    resourceTypes.Add(resource, type);
 
                     // Даем осмысленное имя
                     resource.name = $"{resourcePrefab.name}_{x}_{y}";
 
-                    return; // Успешно разместили
+                    return;
                 }
             }
         }
@@ -224,13 +231,103 @@ public class SimpleIslandGenerator : MonoBehaviour
         Debug.LogWarning($"Не удалось разместить {resourcePrefab.name} после {maxAttempts} попыток");
     }
 
+    // НОВЫЙ МЕТОД: Очистка острова
+    public void ClearIsland()
+    {
+        // Удаляем все клетки земли
+        while (transform.childCount > 0)
+        {
+            DestroyImmediate(transform.GetChild(0).gameObject);
+        }
+
+        // Очищаем словари ресурсов
+        resources.Clear();
+        resourceTypes.Clear();
+    }
+
+    // НОВЫЙ МЕТОД: Удаление конкретного ресурса
+    public void RemoveResource(GameObject resource)
+    {
+        if (resources.ContainsKey(resource))
+        {
+            // Определяем тип ресурса для обновления счетчика
+            if (resourceTypes.ContainsKey(resource))
+            {
+                if (resourceTypes[resource] == ResourceType.Tree)
+                {
+                    treeCount = Mathf.Max(0, treeCount - 1);
+                }
+                else if (resourceTypes[resource] == ResourceType.Stone)
+                {
+                    stoneCount = Mathf.Max(0, stoneCount - 1);
+                }
+            }
+
+            // Удаляем из словарей
+            resources.Remove(resource);
+            resourceTypes.Remove(resource);
+
+            // Обновляем счетчики на UI
+            UpdateResourceCounters();
+        }
+    }
+
+    // НОВЫЙ МЕТОД: Обновление счетчиков ресурсов
+    public void UpdateResourceCounters()
+    {
+        if (countTrees != null)
+        {
+            countTrees.text = $"{treeCount}";
+        }
+
+        if (countStone != null)
+        {
+            countStone.text = $"{stoneCount}";
+        }
+    }
+
+    // НОВЫЙ МЕТОД: Получить все ресурсы определенного типа
+    public List<GameObject> GetResourcesByType(ResourceType type)
+    {
+        return resourceTypes
+            .Where(kvp => kvp.Value == type)
+            .Select(kvp => kvp.Key)
+            .ToList();
+    }
+
+    // НОВЫЙ МЕТОД: Добавить новый ресурс вручную
+    public void AddResourceManually(GameObject resourcePrefab, Vector3 position, ResourceType type)
+    {
+        GameObject newResource = Instantiate(resourcePrefab, position, Quaternion.identity, transform);
+
+        // Добавляем компонент DeletableObject
+        DeletableObject deletable = newResource.AddComponent<DeletableObject>();
+        deletable.objectType = type == ResourceType.Tree ?
+            DeletableObject.ObjectType.Tree :
+            DeletableObject.ObjectType.Stone;
+
+        resources.Add(newResource, position);
+        resourceTypes.Add(newResource, type);
+
+        if (type == ResourceType.Tree)
+        {
+            treeCount++;
+        }
+        else if (type == ResourceType.Stone)
+        {
+            stoneCount++;
+        }
+
+        UpdateResourceCounters();
+    }
+
     public void SetResourceCounts(int trees, int stones)
     {
         treeCount = trees;
         stoneCount = stones;
+        UpdateResourceCounters();
     }
 
-    // Дополнительный метод для установки позиции
     public void SetPosition(float x, float z)
     {
         startX = x;
