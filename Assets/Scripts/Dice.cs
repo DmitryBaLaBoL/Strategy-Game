@@ -23,7 +23,7 @@ public class Dice : MonoBehaviour
     public Rigidbody rb;
     public MeshRenderer meshRenderer;
 
-    private bool hasLanded = false;
+    //private bool hasLanded = false;
     private Vector3 startPosition;
     private Quaternion startRotation;
 
@@ -38,7 +38,7 @@ public class Dice : MonoBehaviour
     // Метод для броска кубика
     public void ThrowDice(Vector3 throwDirection)
     {
-        hasLanded = false;
+        //hasLanded = false;
         transform.position = startPosition;
         transform.rotation = startRotation;
 
@@ -75,12 +75,12 @@ public class Dice : MonoBehaviour
         DiceFace result = faces[upperFaceIndex];
 
         // Добавляем ресурс игроку
-        ResourceManager.Instance.AddResource(result.resourceName, result.amount);
+        //ResourceManager.Instance.AddResource(result.resourceName, result.amount);
 
         // Показываем результат (опционально)
         Debug.Log($"Выпало: {result.resourceName} +{result.amount}");
 
-        hasLanded = true;
+        //hasLanded = true;
 
         // Уничтожаем кубик через некоторое время
         Destroy(gameObject, destroyTime);

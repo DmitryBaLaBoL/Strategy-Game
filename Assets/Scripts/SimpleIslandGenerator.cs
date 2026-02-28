@@ -255,11 +255,11 @@ public class SimpleIslandGenerator : MonoBehaviour
             {
                 if (resourceTypes[resource] == ResourceType.Tree)
                 {
-                    treeCount = Mathf.Max(0, treeCount - 1);
+                    treeCount = Mathf.Max(0, treeCount + 1);
                 }
                 else if (resourceTypes[resource] == ResourceType.Stone)
                 {
-                    stoneCount = Mathf.Max(0, stoneCount - 1);
+                    stoneCount = Mathf.Max(0, stoneCount + 1);
                 }
             }
 
