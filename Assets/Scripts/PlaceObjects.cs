@@ -1,23 +1,25 @@
-using System;
-using UnityEngine;
+п»їusing UnityEngine;
 
 public class PlaceObjects : MonoBehaviour
 {
     public LayerMask layer;
     public float rotateSpeed = 60f;
+    public LayerMask obstacleLayer;
+    public Vector3 objectSize = Vector3.one;
 
-    // Новые поля для проверки коллизий
-    public LayerMask obstacleLayer; // Слой для препятствий (объекты, которые уже размещены)
-    public Vector3 objectSize = Vector3.one; // Размер объекта для проверки коллизий
+    [Header("РЎС‚РѕРёРјРѕСЃС‚СЊ РїРѕСЃС‚СЂРѕР№РєРё")]
+    public int woodCost = 0;
+    public int stoneCost = 0;
+
     private bool canPlace = true;
     private Material originalMaterial;
     private Renderer objectRenderer;
     private Color originalColor;
-    private bool isPlaced = false; // Флаг, указывающий, размещен ли объект
+    private bool isPlaced = false;
+    private ResourcePanelManager resourceManager;
 
     private void Start()
     {
-        // Сохраняем оригинальный материал и получаем рендерер
         objectRenderer = GetComponent<Renderer>();
         if (objectRenderer != null)
         {
@@ -25,23 +27,20 @@ public class PlaceObjects : MonoBehaviour
             originalColor = objectRenderer.material.color;
         }
 
+        resourceManager = ResourcePanelManager.Instance;
         PositionObject();
     }
 
     private void Update()
     {
-        // Если объект уже размещен - не обновляем позицию и цвет
-        if (isPlaced)
-        {
-            return;
-        }
+        if (isPlaced) return;
 
         PositionObject();
 
-        // Визуальная индикация - можно ли ставить объект
         if (objectRenderer != null)
         {
-            if (canPlace)
+            // РџСЂРѕРІРµСЂСЏРµРј РјРѕР¶РЅРѕ Р»Рё РїРѕСЃС‚Р°РІРёС‚СЊ Рё С…РІР°С‚Р°РµС‚ Р»Рё СЂРµСЃСѓСЂСЃРѕРІ
+            if (canPlace && CanAfford())
             {
                 objectRenderer.material.color = Color.green;
             }
@@ -51,7 +50,7 @@ public class PlaceObjects : MonoBehaviour
             }
         }
 
-        if (Input.GetMouseButtonDown(1) && canPlace)
+        if (Input.GetMouseButtonDown(0) && canPlace && CanAfford())
         {
             PlaceBuilding();
         }
@@ -64,77 +63,72 @@ public class PlaceObjects : MonoBehaviour
 
     private void PlaceBuilding()
     {
-        // Помечаем объект как размещенный
+        // РЎРїРёСЃС‹РІР°РµРј СЂРµСЃСѓСЂСЃС‹
+        if (resourceManager != null)
+        {
+            // РСЃРїРѕР»СЊР·СѓРµРј РїСЂР°РІРёР»СЊРЅС‹Р№ РјРµС‚РѕРґ SpendResources СЃ 2 РїР°СЂР°РјРµС‚СЂР°РјРё (РґРµСЂРµРІРѕ, РєР°РјРµРЅСЊ)
+            if (!resourceManager.SpendResources(woodCost, stoneCost))
+            {
+                Debug.Log($"РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ СЂРµСЃСѓСЂСЃРѕРІ РґР»СЏ РїРѕСЃС‚СЂРѕР№РєРё! РќСѓР¶РЅРѕ: Р”РµСЂРµРІР°={woodCost}, РєР°РјРЅСЏ={stoneCost}");
+                return;
+            }
+        }
+
         isPlaced = true;
 
-        // Возвращаем оригинальный материал
         if (objectRenderer != null)
         {
             objectRenderer.material = originalMaterial;
             objectRenderer.material.color = originalColor;
-            Debug.LogWarning("Вернули материал");
         }
 
-        // Удаляем скрипт размещения
+        Debug.Log($"Р—РґР°РЅРёРµ РїРѕСЃС‚СЂРѕРµРЅРѕ! РџРѕС‚СЂР°С‡РµРЅРѕ: Р”РµСЂРµРІР°={woodCost}, РєР°РјРЅСЏ={stoneCost}");
         Destroy(gameObject.GetComponent<PlaceObjects>());
+    }
 
-        Debug.LogWarning("Построено");
+    bool CanAfford()
+    {
+        if (resourceManager == null) return true;
+        return resourceManager.GetWood() >= woodCost && resourceManager.GetStone() >= stoneCost;
     }
 
     private void PositionObject()
     {
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-
         RaycastHit hit;
+
         if (Physics.Raycast(ray, out hit, 1000f, layer))
         {
             Vector3 a = hit.point;
             int b = 0, c = 0;
 
-            // Округление до ближайшего целого с учетом смещения 0.5
             b = Mathf.RoundToInt(a.x);
             c = Mathf.RoundToInt(a.z);
 
             a.x = b;
             a.z = c;
-
-            // Временно перемещаем объект для проверки коллизий
             transform.position = a;
-
-            // Проверяем, можно ли разместить объект здесь
             canPlace = CheckPlacement();
         }
     }
 
     private bool CheckPlacement()
     {
-        // Проверяем коллизии с другими объектами
         Collider[] colliders = Physics.OverlapBox(
-            transform.position + Vector3.up * (objectSize.y / 2f), // Центр бокса проверки
-            objectSize / 2f, // Половина размера объекта
+            transform.position + Vector3.up * (objectSize.y / 2f),
+            objectSize / 2f,
             transform.rotation,
             obstacleLayer
         );
 
-        // Исключаем собственный коллайдер из проверки
         Collider ownCollider = GetComponent<Collider>();
         foreach (Collider col in colliders)
         {
             if (col != ownCollider)
             {
-                return false; // Есть перекрытие с другим объектом
+                return false;
             }
         }
-
-        return true; // Место свободно
-    }
-
-    // Визуализация зоны проверки в редакторе (для отладки)
-    private void OnDrawGizmos()
-    {
-        if (!Application.isPlaying) return;
-
-        Gizmos.color = canPlace ? Color.green : Color.red;
-        Gizmos.DrawWireCube(transform.position + Vector3.up * (objectSize.y / 2f), objectSize);
+        return true;
     }
 }

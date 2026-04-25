@@ -3,13 +3,12 @@ using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
-    // Это для синглтона
     public static GameManager Instance { get; private set; }
 
     [Header("Генератор острова")]
     public SimpleIslandGenerator islandGenerator;
 
-    [Header("Менеджеры фаз")] // НОВОЕ
+    [Header("Менеджеры фаз")] 
     public GamePhaseManager phaseManager;
     public DiceManager diceManager;
 
@@ -24,7 +23,7 @@ public class GameManager : MonoBehaviour
             islandGenerator.GenerateIsland();
         }
 
-        // НОВОЕ: Запускаем первую фазу
+        // Запускаем первую фазу
         if (startWithDicePhase && phaseManager != null)
         {
             // Небольшая задержка, чтобы остров точно сгенерировался
@@ -32,7 +31,6 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // НОВЫЙ МЕТОД
     void StartFirstPhase()
     {
         if (phaseManager != null)
@@ -55,7 +53,7 @@ public class GameManager : MonoBehaviour
         UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
     }
 
-    // Опционально: регенерация острова по кнопке
+
     public void RegenerateIsland()
     {
         if (islandGenerator != null)
@@ -64,7 +62,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // НОВЫЙ МЕТОД: Переход к следующей фазе (можно вызвать из кнопки)
+    // Переход к следующей фазе
     public void NextPhase()
     {
         if (phaseManager != null)

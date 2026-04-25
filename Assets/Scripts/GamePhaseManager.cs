@@ -16,8 +16,9 @@ public class GamePhaseManager : MonoBehaviour
     [Header("Менеджеры")]
     public DiceManager diceManager;
     public SimpleIslandGenerator islandGenerator;
-    public GameObject buildingUI; // UI для строительства
-    public GameObject combatUI; // UI для сражения
+    public GameObject buildingUI;
+    public GameObject combatUI;
+    public GameObject resourcePanel; // Ссылка на ResourcePanel
 
     [Header("UI для фаз")]
     public TextMeshProUGUI phaseText;
@@ -31,13 +32,14 @@ public class GamePhaseManager : MonoBehaviour
     public void StartDicePhase()
     {
         currentPhase = GamePhase.DiceRolling;
-        UpdatePhaseUI("ФАЗА 1: БРОСОК КУБИКОВ");
+        UpdatePhaseUI("Фаза 1: Бросок кубиков");
 
-        // Скрываем UI других фаз
         if (buildingUI != null) buildingUI.SetActive(false);
         if (combatUI != null) combatUI.SetActive(false);
 
-        // Запускаем бросок кубиков
+        // Показываем панель ресурсов
+        if (resourcePanel != null) resourcePanel.SetActive(true);
+
         if (diceManager != null)
         {
             diceManager.StartDicePhase();
@@ -47,11 +49,13 @@ public class GamePhaseManager : MonoBehaviour
     public void StartBuildPhase()
     {
         currentPhase = GamePhase.Building;
-        UpdatePhaseUI("ФАЗА 2: СТРОИТЕЛЬСТВО");
+        UpdatePhaseUI("Фаза 2: Строительство");
 
-        // Показываем UI строительства
         if (buildingUI != null) buildingUI.SetActive(true);
         if (combatUI != null) combatUI.SetActive(false);
+
+        // Панель ресурсов должна оставаться видимой
+        if (resourcePanel != null) resourcePanel.SetActive(true);
 
         Debug.Log("Начало фазы строительства");
     }
@@ -59,11 +63,13 @@ public class GamePhaseManager : MonoBehaviour
     public void StartCombatPhase()
     {
         currentPhase = GamePhase.Combat;
-        UpdatePhaseUI("ФАЗА 3: СРАЖЕНИЕ");
+        UpdatePhaseUI("Фаза 3: Сражение");
 
-        // Показываем UI сражения
         if (buildingUI != null) buildingUI.SetActive(false);
         if (combatUI != null) combatUI.SetActive(true);
+
+        // Панель ресурсов видна и в фазе сражения (если нужна)
+        if (resourcePanel != null) resourcePanel.SetActive(true);
 
         Debug.Log("Начало фазы сражения");
     }
@@ -73,7 +79,6 @@ public class GamePhaseManager : MonoBehaviour
         if (phaseText != null)
             phaseText.text = message;
 
-        // Показываем уведомление о смене фазы
         if (phaseTransitionPanel != null)
         {
             phaseTransitionPanel.SetActive(true);

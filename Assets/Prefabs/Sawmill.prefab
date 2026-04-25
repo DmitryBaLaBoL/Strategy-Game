@@ -111,3 +111,5 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 256
   objectSize: {x: 1, y: 1, z: 1}
+  woodCost: 2
+  stoneCost: 2

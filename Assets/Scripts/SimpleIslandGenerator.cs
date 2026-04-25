@@ -64,6 +64,12 @@ public class SimpleIslandGenerator : MonoBehaviour
 
     public void GenerateIsland()
     {
+        // Обновляем счетчики из ResourcePanelManager
+        if (ResourcePanelManager.Instance != null)
+        {
+            ResourcePanelManager.Instance.SetResources(treeCount, stoneCount);
+        }
+
         countTrees.text = $"{treeCount}";
         countStone.text = $"{stoneCount}";
 
@@ -246,28 +252,34 @@ public class SimpleIslandGenerator : MonoBehaviour
     }
 
     // НОВЫЙ МЕТОД: Удаление конкретного ресурса
+    // Метод для удаления ресурса
     public void RemoveResource(GameObject resource)
     {
         if (resources.ContainsKey(resource))
         {
-            // Определяем тип ресурса для обновления счетчика
             if (resourceTypes.ContainsKey(resource))
             {
                 if (resourceTypes[resource] == ResourceType.Tree)
                 {
-                    treeCount = Mathf.Max(0, treeCount + 1);
+                    treeCount = Mathf.Max(0, treeCount - 1);
+                    // Обновляем ResourcePanelManager
+                    if (ResourcePanelManager.Instance != null)
+                    {
+                        ResourcePanelManager.Instance.AddWood(-1); // Вычитаем 1
+                    }
                 }
                 else if (resourceTypes[resource] == ResourceType.Stone)
                 {
-                    stoneCount = Mathf.Max(0, stoneCount + 1);
+                    stoneCount = Mathf.Max(0, stoneCount - 1);
+                    if (ResourcePanelManager.Instance != null)
+                    {
+                        ResourcePanelManager.Instance.AddStone(-1);
+                    }
                 }
             }
 
-            // Удаляем из словарей
             resources.Remove(resource);
             resourceTypes.Remove(resource);
-
-            // Обновляем счетчики на UI
             UpdateResourceCounters();
         }
     }
@@ -326,6 +338,12 @@ public class SimpleIslandGenerator : MonoBehaviour
         treeCount = trees;
         stoneCount = stones;
         UpdateResourceCounters();
+
+        // Синхронизируем с ResourcePanelManager
+        if (ResourcePanelManager.Instance != null)
+        {
+            ResourcePanelManager.Instance.SetResources(trees, stones);
+        }
     }
 
     public void SetPosition(float x, float z)

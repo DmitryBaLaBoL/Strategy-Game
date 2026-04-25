@@ -155,14 +155,31 @@ MonoBehaviour:
   m_GameObject: {fileID: 51058503734673254}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 601963e9f87d87241868a096964222db, type: 3}
+  m_Script: {fileID: 11500000, guid: 23f2d9b8abef2274399572263040fad5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DiceVisual
-  faceRenderers:
-  - {fileID: 7650557753002267803}
-  - {fileID: 7650557753002267803}
-  - {fileID: 7650557753002267803}
-  - {fileID: 7650557753002267803}
-  - {fileID: 7650557753002267803}
-  - {fileID: 7650557753002267803}
-  defaultMaterial: {fileID: 0}
+  faces:
+  - faceName: "\u0414\u0435\u0440\u0435\u0432\u043E 1"
+    resourceType: 0
+    amount: 1
+    faceColor: {r: 1, g: 1, b: 1, a: 1}
+  - faceName: "\u041A\u0430\u043C\u0435\u043D\u044C 1"
+    resourceType: 1
+    amount: 1
+    faceColor: {r: 1, g: 1, b: 1, a: 1}
+  - faceName: "\u041C\u043E\u043D\u0435\u0442\u0430 1"
+    resourceType: 2
+    amount: 1
+    faceColor: {r: 1, g: 1, b: 1, a: 1}
+  - faceName: "\u0415\u0434\u0430 1"
+    resourceType: 3
+    amount: 1
+    faceColor: {r: 1, g: 1, b: 1, a: 1}
+  - faceName: "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 1"
+    resourceType: 4
+    amount: 1
+    faceColor: {r: 1, g: 1, b: 1, a: 1}
+  - faceName: "\u041A\u043D\u0438\u0433\u0430 1"
+    resourceType: 5
+    amount: 1
+    faceColor: {r: 1, g: 1, b: 1, a: 1}

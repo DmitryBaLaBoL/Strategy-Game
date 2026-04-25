@@ -11,273 +11,259 @@ public class DiceManager : MonoBehaviour
     public GamePhaseManager phaseManager;
 
     [Header("Настройки кубиков")]
-    public int numberOfDice = 5; // Количество кубиков
-    public List<DiceFaceData> diceFaces = new List<DiceFaceData>(); // Данные граней
+    public int numberOfDice = 5;
+    public GameObject dicePrefab;
+    public Transform diceSpawnPoint;
+    public Transform diceTable;
+    public GameObject diceArena;
+    public float throwForce = 8f;
+    public float throwUpwardForce = 6f;
+    public float spreadForce = 2f;
 
     [Header("UI элементы")]
-    public GameObject dicePanel; // Панель с кубиками
-    public GameObject dicePrefab; // Префаб кубика
-    public Transform diceContainer; // Контейнер для кубиков
-    public Button rollButton; // Кнопка броска
-    public Button continueButton; // Кнопка продолжения
+    public GameObject dicePanel;
+    public Button rollButton;
+    public Button continueButton;
+    public GameObject resourcePanel;
 
-    [Header("Тексты результатов")]
-    public TextMeshProUGUI resultText;
-    public TextMeshProUGUI totalWoodText;
-    public TextMeshProUGUI totalStoneText;
-    public TextMeshProUGUI rollCountText; // Текст для отображения попыток
+    [Header("Тексты ресурсов")]
+    public TextMeshProUGUI woodCurrentText;
+    public TextMeshProUGUI stoneCurrentText;
 
-    [Header("Анимация")]
-    public float rollAnimationDuration = 2f;
-    public float diceSpacing = 1.5f;
+    // Текущие ресурсы
+    private int currentWood = 0;
+    private int currentStone = 0;
 
-    [Header("Настройки фаз")]
-    public int maxRolls = 3; // Максимальное количество бросков в фазе
-    public int currentRollCount = 0;
-
-    // Текущие результаты
-    private Dictionary<SimpleIslandGenerator.ResourceType, int> currentResources =
-        new Dictionary<SimpleIslandGenerator.ResourceType, int>();
-
-    private List<GameObject> spawnedDice = new List<GameObject>();
-    private List<int> currentDiceResults = new List<int>();
+    private List<GameObject> currentDiceList = new List<GameObject>();
+    private int diceResultsReceived = 0;
     private bool isRolling = false;
-
-    [System.Serializable]
-    public class DiceFaceData
-    {
-        public SimpleIslandGenerator.ResourceType resourceType;
-        public Sprite faceIcon;
-        public Color faceColor = Color.white;
-        public int minAmount = 1;
-        public int maxAmount = 3;
-    }
+    // Флаг на то, что бросок уже был сделан
+    private bool hasThrown = false; 
 
     void Start()
     {
-        // Инициализируем словарь ресурсов
-        ResetResources();
-
-        // Подписываемся на события кнопок
         if (rollButton != null)
-            rollButton.onClick.AddListener(StartRollingDice);
+            rollButton.onClick.AddListener(OnRollButtonClicked);
 
         if (continueButton != null)
             continueButton.onClick.AddListener(ContinueToNextPhase);
 
-        // Скрываем панель сначала
         if (dicePanel != null)
             dicePanel.SetActive(false);
 
-        UpdateRollCountText();
+        if (diceArena != null)
+            diceArena.SetActive(false);
+
+        // Изначально кнопка Continue неактивна
+        if (continueButton != null)
+            continueButton.interactable = false;
     }
 
     public void StartDicePhase()
     {
-        currentRollCount = 0;
-        ResetResources();
+        Debug.Log("Фаза броска кубиков");
+        currentWood = 0;
+        currentStone = 0;
+        diceResultsReceived = 0;
+        hasThrown = false;
 
         if (dicePanel != null)
             dicePanel.SetActive(true);
 
-        // Создаем кубики
-        SpawnDice();
+        if (resourcePanel != null)
+            resourcePanel.SetActive(true);
 
-        // Активируем кнопку броска
+        ShowArena(true);
+        UpdateResourceDisplay();
+        CreateNewDiceSet();
+
         if (rollButton != null)
             rollButton.interactable = true;
 
-        UpdateRollCountText();
+        if (continueButton != null)
+            continueButton.interactable = false;
     }
 
-    void SpawnDice()
+    void ShowArena(bool show)
     {
-        // Очищаем старые кубики
-        foreach (var dice in spawnedDice)
-        {
-            Destroy(dice);
-        }
-        spawnedDice.Clear();
+        if (diceArena != null)
+            diceArena.SetActive(show);
+    }
+
+    void CreateNewDiceSet()
+    {
+        // Удаляем старые кубики
+        DestroyAllDice();
 
         // Создаем новые кубики
         for (int i = 0; i < numberOfDice; i++)
         {
-            if (dicePrefab != null && diceContainer != null)
+            if (dicePrefab != null)
             {
-                Vector3 position = diceContainer.position + new Vector3(i * diceSpacing, 0, 0);
-                GameObject dice = Instantiate(dicePrefab, position, Quaternion.identity, diceContainer);
+                Vector3 spawnPos = diceSpawnPoint != null ?
+                    diceSpawnPoint.position + new Vector3(i * 0.5f, 0, 0) :
+                    new Vector3(i * 0.5f, 3f, 0);
 
-                // Настраиваем визуал кубика
-                DiceVisual diceVisual = dice.GetComponent<DiceVisual>();
-                if (diceVisual != null)
+                GameObject dice = Instantiate(dicePrefab, spawnPos, Quaternion.identity);
+
+                Dice diceScript = dice.GetComponent<Dice>();
+                if (diceScript != null)
                 {
-                    diceVisual.SetDiceFaces(diceFaces);
+                    diceScript.OnDiceLanded += OnDiceResult;
+                }
+                else
+                {
+                    Debug.LogError($"У префаба {dicePrefab.name} нет компонента Dice!");
                 }
 
-                spawnedDice.Add(dice);
+                currentDiceList.Add(dice);
             }
+        }
+
+        Debug.Log($"Создано {currentDiceList.Count} кубиков");
+    }
+
+    void DestroyAllDice()
+    {
+        foreach (var dice in currentDiceList)
+        {
+            if (dice != null)
+                Destroy(dice);
+        }
+        currentDiceList.Clear();
+    }
+
+    void OnDiceResult(ResourceType resourceType, int amount, GameObject diceObject)
+    {
+        Debug.Log($"Выпал кубик: {resourceType} +{amount}");
+
+        // Добавляем ресурсы через ResourcePanelManager
+        if (ResourcePanelManager.Instance != null)
+        {
+            ResourcePanelManager.Instance.AddResource(resourceType, amount);
+        }
+
+        diceResultsReceived++;
+
+        if (diceResultsReceived >= numberOfDice)
+        {
+            Debug.Log("Все кубики дали результат!");
+            EnableContinueButton();
         }
     }
 
-    void StartRollingDice()
+    void UpdateResourceDisplay()
     {
-        if (isRolling) return;
+        if (woodCurrentText != null)
+            woodCurrentText.text = $"{currentWood}";
 
-        if (currentRollCount >= maxRolls)
+        if (stoneCurrentText != null)
+            stoneCurrentText.text = $"{currentStone}";
+    }
+
+    public void OnRollButtonClicked()
+    {
+        if (isRolling)
         {
-            // Если достигли лимита бросков, показываем сообщение
-            if (resultText != null)
-                resultText.text = "Достигнут лимит бросков!";
+            Debug.Log("Бросок уже выполняется!");
             return;
         }
 
-        currentRollCount++;
-        StartCoroutine(RollDiceAnimation());
-        UpdateRollCountText();
+        if (hasThrown)
+        {
+            Debug.Log("Бросок уже был сделан! Нажмите Продолжить.");
+            return;
+        }
+
+        StartCoroutine(PerformThrow());
     }
 
-    IEnumerator RollDiceAnimation()
+    IEnumerator PerformThrow()
     {
         isRolling = true;
-        rollButton.interactable = false;
+        hasThrown = true;
 
-        float elapsedTime = 0f;
-        currentDiceResults.Clear();
+        if (rollButton != null)
+            rollButton.interactable = false;
 
-        // Анимация вращения кубиков
-        while (elapsedTime < rollAnimationDuration)
+        // Сбрасываем счетчик результатов
+        diceResultsReceived = 0;
+
+        yield return new WaitForSeconds(0.2f);
+
+        // Бросаем кубики
+        foreach (var diceObj in currentDiceList)
         {
-            foreach (var dice in spawnedDice)
-            {
-                dice.transform.Rotate(Random.Range(0, 360), Random.Range(0, 360), Random.Range(0, 360), Space.Self);
-            }
+            if (diceObj == null) continue;
 
-            elapsedTime += Time.deltaTime;
-            yield return null;
+            Rigidbody rb = diceObj.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                Vector3 randomDir = new Vector3(
+                    Random.Range(-spreadForce, spreadForce),
+                    Random.Range(2f, throwUpwardForce),
+                    Random.Range(1f, throwForce)
+                );
+
+                Dice diceScript = diceObj.GetComponent<Dice>();
+                if (diceScript != null)
+                {
+                    diceScript.ThrowDice(randomDir);
+                }
+            }
         }
 
-        // Получаем результаты
-        GetDiceResults();
-
+        Debug.Log($"Бросок выполнен, ожидаем результаты...");
         isRolling = false;
 
-        // Если не достигли лимита, активируем кнопку снова
-        if (currentRollCount < maxRolls)
+        // Таймаут на случай проблем
+        StartCoroutine(TimeoutCheck());
+    }
+
+    IEnumerator TimeoutCheck()
+    {
+        float timeout = 8f;
+        float elapsed = 0f;
+
+        while (diceResultsReceived < numberOfDice && elapsed < timeout)
         {
-            rollButton.interactable = true;
+            elapsed += Time.deltaTime;
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        if (diceResultsReceived < numberOfDice)
+        {
+            Debug.LogWarning($"Получено только {diceResultsReceived}/{numberOfDice} результатов. Принудительная активация Continue.");
+            EnableContinueButton();
         }
     }
 
-    void GetDiceResults()
+    void EnableContinueButton()
     {
-        // Сбрасываем ресурсы текущего броска
-        Dictionary<SimpleIslandGenerator.ResourceType, int> rollResources =
-            new Dictionary<SimpleIslandGenerator.ResourceType, int>();
-        rollResources[SimpleIslandGenerator.ResourceType.Tree] = 0;
-        rollResources[SimpleIslandGenerator.ResourceType.Stone] = 0;
-
-        // Бросаем каждый кубик
-        for (int i = 0; i < numberOfDice; i++)
+        if (continueButton != null)
         {
-            // Выбираем случайную грань
-            int faceIndex = Random.Range(0, diceFaces.Count);
-            DiceFaceData rolledFace = diceFaces[faceIndex];
-
-            // Получаем случайное количество ресурса
-            int amount = Random.Range(rolledFace.minAmount, rolledFace.maxAmount + 1);
-
-            // Добавляем к результатам броска
-            rollResources[rolledFace.resourceType] += amount;
-
-            // Сохраняем индекс грани для визуала
-            currentDiceResults.Add(faceIndex);
-
-            Debug.Log($"Кубик {i + 1}: {rolledFace.resourceType} +{amount}");
+            continueButton.interactable = true;
         }
-
-        // Добавляем ресурсы от этого броска к общему счету
-        currentResources[SimpleIslandGenerator.ResourceType.Tree] += rollResources[SimpleIslandGenerator.ResourceType.Tree];
-        currentResources[SimpleIslandGenerator.ResourceType.Stone] += rollResources[SimpleIslandGenerator.ResourceType.Stone];
-
-        // Обновляем UI
-        UpdateResourceTexts();
-        UpdateDiceVisuals();
-
-        // Показываем результаты броска
-        if (resultText != null)
-        {
-            resultText.text = $"Бросок {currentRollCount} из {maxRolls}\n" +
-                             $"Получено:\n" +
-                             $"Дерево: +{rollResources[SimpleIslandGenerator.ResourceType.Tree]}\n" +
-                             $"Камень: +{rollResources[SimpleIslandGenerator.ResourceType.Stone]}";
-        }
-    }
-
-    void UpdateDiceVisuals()
-    {
-        for (int i = 0; i < spawnedDice.Count && i < currentDiceResults.Count; i++)
-        {
-            DiceVisual diceVisual = spawnedDice[i].GetComponent<DiceVisual>();
-            if (diceVisual != null)
-            {
-                diceVisual.ShowFace(currentDiceResults[i]);
-            }
-        }
-    }
-
-    void UpdateResourceTexts()
-    {
-        if (totalWoodText != null)
-        {
-            totalWoodText.text = $"Всего дерева: {currentResources[SimpleIslandGenerator.ResourceType.Tree]}";
-        }
-
-        if (totalStoneText != null)
-        {
-            totalStoneText.text = $"Всего камня: {currentResources[SimpleIslandGenerator.ResourceType.Stone]}";
-        }
-    }
-
-    void UpdateRollCountText()
-    {
-        if (rollCountText != null)
-        {
-            rollCountText.text = $"Бросков: {currentRollCount}/{maxRolls}";
-        }
-    }
-
-    void ResetResources()
-    {
-        currentResources.Clear();
-        currentResources[SimpleIslandGenerator.ResourceType.Tree] = 0;
-        currentResources[SimpleIslandGenerator.ResourceType.Stone] = 0;
-        UpdateResourceTexts();
     }
 
     public void ContinueToNextPhase()
     {
-        // Добавляем ресурсы в генератор острова
+        Debug.Log($"Переход к стройке с ресурсами: Дерево={ResourcePanelManager.Instance.GetWood()}, Камень={ResourcePanelManager.Instance.GetStone()}");
+
         if (islandGenerator != null)
         {
-            // Получаем текущие ресурсы
-            int currentTrees = islandGenerator.treeCount;
-            int currentStones = islandGenerator.stoneCount;
+            int currentWood = ResourcePanelManager.Instance.GetWood();
+            int currentStones = ResourcePanelManager.Instance.GetStone();
 
-            // Добавляем полученные ресурсы
-            islandGenerator.SetResourceCounts(
-                currentTrees + currentResources[SimpleIslandGenerator.ResourceType.Tree],
-                currentStones + currentResources[SimpleIslandGenerator.ResourceType.Stone]
-            );
-
-            Debug.Log($"Добавлены ресурсы: Дерево +{currentResources[SimpleIslandGenerator.ResourceType.Tree]}, " +
-                     $"Камень +{currentResources[SimpleIslandGenerator.ResourceType.Stone]}");
+            islandGenerator.SetResourceCounts(currentWood, currentStones);
         }
 
-        // Скрываем панель кубиков
+        DestroyAllDice();
+        ShowArena(false);
+
         if (dicePanel != null)
             dicePanel.SetActive(false);
 
-        // Переходим к фазе строительства
         if (phaseManager != null)
         {
             phaseManager.StartBuildPhase();
