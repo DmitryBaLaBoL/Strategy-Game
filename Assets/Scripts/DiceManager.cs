@@ -7,6 +7,7 @@ using System.Collections;
 public class DiceManager : MonoBehaviour
 {
     [Header("Ссылки")]
+    public static DiceManager Instance { get; private set; }
     public SimpleIslandGenerator islandGenerator;
     public GamePhaseManager phaseManager;
 
@@ -38,7 +39,9 @@ public class DiceManager : MonoBehaviour
     private int diceResultsReceived = 0;
     private bool isRolling = false;
     // Флаг на то, что бросок уже был сделан
-    private bool hasThrown = false; 
+    private bool hasThrown = false;
+    // Кубики здания
+    private List<BuildingDice> buildingDiceList = new List<BuildingDice>();
 
     void Start()
     {
@@ -58,9 +61,36 @@ public class DiceManager : MonoBehaviour
         if (continueButton != null)
             continueButton.interactable = false;
     }
+    void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(gameObject);
+    }
+
+    public void RegisterBuildingDice(BuildingDice buildingDice)
+    {
+        buildingDiceList.Add(buildingDice);
+        Debug.Log($"Зарегистрирован кубик от здания: {buildingDice.GetBuildingName()}");
+    }
 
     public void StartDicePhase()
     {
+        Debug.Log(" НАЧАЛО ФАЗЫ БРОСКА КУБИКОВ ");
+
+        // Количество кубиков = количество зданий
+        numberOfDice = buildingDiceList.Count;
+
+        if (numberOfDice == 0)
+        {
+            Debug.LogWarning("Нет зданий для броска кубиков!");
+            EnableContinueButton();
+            return;
+        }
+
+        Debug.Log($"Будет брошено {numberOfDice} кубиков (по одному от каждого здания)");
+
         Debug.Log("Фаза броска кубиков");
         currentWood = 0;
         currentStone = 0;
@@ -186,38 +216,55 @@ public class DiceManager : MonoBehaviour
         if (rollButton != null)
             rollButton.interactable = false;
 
-        // Сбрасываем счетчик результатов
         diceResultsReceived = 0;
 
         yield return new WaitForSeconds(0.2f);
 
-        // Бросаем кубики
-        foreach (var diceObj in currentDiceList)
+        // Бросаем кубики от каждого здания
+        for (int i = 0; i < buildingDiceList.Count; i++)
         {
-            if (diceObj == null) continue;
+            var buildingDice = buildingDiceList[i];
 
-            Rigidbody rb = diceObj.GetComponent<Rigidbody>();
-            if (rb != null)
+            // Создаем визуальный кубик
+            Vector3 spawnPos = diceSpawnPoint != null ?
+                diceSpawnPoint.position + new Vector3(i * 0.5f, 0, 0) :
+                new Vector3(i * 0.5f, 3f, 0);
+
+            GameObject diceObj = Instantiate(dicePrefab, spawnPos, Quaternion.identity);
+            Dice diceScript = diceObj.GetComponent<Dice>();
+
+            if (diceScript != null)
             {
+                // Настраиваем грани кубика из конфигурации здания
+                SetupDiceFaces(diceScript, buildingDice);
+
+                // Бросаем кубик
                 Vector3 randomDir = new Vector3(
                     Random.Range(-spreadForce, spreadForce),
                     Random.Range(2f, throwUpwardForce),
                     Random.Range(1f, throwForce)
                 );
 
-                Dice diceScript = diceObj.GetComponent<Dice>();
-                if (diceScript != null)
-                {
-                    diceScript.ThrowDice(randomDir);
-                }
+                diceScript.OnDiceLanded += (resourceType, amount, obj) => {
+                    // Ресурс уже добавлен в BuildingDice.RollDice()
+                    diceResultsReceived++;
+                };
+
+                diceScript.ThrowDice(randomDir);
+                currentDiceList.Add(diceObj);
             }
         }
 
-        Debug.Log($"Бросок выполнен, ожидаем результаты...");
+        Debug.Log($"Брошено {buildingDiceList.Count} кубиков");
         isRolling = false;
 
-        // Таймаут на случай проблем
         StartCoroutine(TimeoutCheck());
+    }
+
+    void SetupDiceFaces(Dice dice, BuildingDice buildingDice)
+    {
+        // Здесь нужно настроить грани кубика в соответствии с конфигурацией здания
+        // Это зависит от твоей реализации Dice
     }
 
     IEnumerator TimeoutCheck()

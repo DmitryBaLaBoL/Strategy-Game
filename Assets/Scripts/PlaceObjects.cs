@@ -11,6 +11,11 @@ public class PlaceObjects : MonoBehaviour
     public int woodCost = 0;
     public int stoneCost = 0;
 
+    public System.Action<GameObject> OnBuildingPlaced;
+    public System.Action OnBuildingCancelled;
+    public bool isStartBuilding = false;
+    public bool isForcedPlacement = false;
+
     private bool canPlace = true;
     private Material originalMaterial;
     private Renderer objectRenderer;
@@ -39,7 +44,6 @@ public class PlaceObjects : MonoBehaviour
 
         if (objectRenderer != null)
         {
-            // Проверяем можно ли поставить и хватает ли ресурсов
             if (canPlace && CanAfford())
             {
                 objectRenderer.material.color = Color.green;
@@ -50,9 +54,16 @@ public class PlaceObjects : MonoBehaviour
             }
         }
 
+        // Левая кнопка - поставить
         if (Input.GetMouseButtonDown(0) && canPlace && CanAfford())
         {
             PlaceBuilding();
+        }
+
+        // Правая кнопка - отмена (только если не принудительная)
+        if (Input.GetMouseButtonDown(1) && !isForcedPlacement)
+        {
+            CancelBuilding();
         }
 
         if (Input.GetKeyDown(KeyCode.LeftShift))
@@ -61,16 +72,25 @@ public class PlaceObjects : MonoBehaviour
         }
     }
 
+    private void CancelBuilding()
+    {
+        Debug.Log("Строительство отменено");
+        OnBuildingCancelled?.Invoke();
+        Destroy(gameObject);
+    }
+
     private void PlaceBuilding()
     {
-        // Списываем ресурсы
-        if (resourceManager != null)
+        // Для стартового строительства - не тратим ресурсы
+        if (!isStartBuilding)
         {
-            // Используем правильный метод SpendResources с 2 параметрами (дерево, камень)
-            if (!resourceManager.SpendResources(woodCost, stoneCost))
+            if (resourceManager != null)
             {
-                Debug.Log($"Недостаточно ресурсов для постройки! Нужно: Дерева={woodCost}, камня={stoneCost}");
-                return;
+                if (!resourceManager.SpendResources(woodCost, stoneCost))
+                {
+                    Debug.Log($"Недостаточно ресурсов! Нужно: 🌲={woodCost}, 🪨={stoneCost}");
+                    return;
+                }
             }
         }
 
@@ -82,12 +102,19 @@ public class PlaceObjects : MonoBehaviour
             objectRenderer.material.color = originalColor;
         }
 
-        Debug.Log($"Здание построено! Потрачено: Дерева={woodCost}, камня={stoneCost}");
-        Destroy(gameObject.GetComponent<PlaceObjects>());
+        Debug.Log($"Здание построено!{(isStartBuilding ? " (стартовое)" : "")}");
+
+        // Вызываем событие перед удалением компонента
+        OnBuildingPlaced?.Invoke(gameObject);
+
+        // Удаляем только компонент PlaceObjects, а не весь объект!
+        Destroy(this);
     }
 
-    bool CanAfford()
+    private bool CanAfford()
     {
+        if (isStartBuilding) return true;
+
         if (resourceManager == null) return true;
         return resourceManager.GetWood() >= woodCost && resourceManager.GetStone() >= stoneCost;
     }
@@ -100,10 +127,8 @@ public class PlaceObjects : MonoBehaviour
         if (Physics.Raycast(ray, out hit, 1000f, layer))
         {
             Vector3 a = hit.point;
-            int b = 0, c = 0;
-
-            b = Mathf.RoundToInt(a.x);
-            c = Mathf.RoundToInt(a.z);
+            int b = Mathf.RoundToInt(a.x);
+            int c = Mathf.RoundToInt(a.z);
 
             a.x = b;
             a.z = c;
@@ -130,5 +155,13 @@ public class PlaceObjects : MonoBehaviour
             }
         }
         return true;
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!Application.isPlaying) return;
+
+        Gizmos.color = canPlace ? Color.green : Color.red;
+        Gizmos.DrawWireCube(transform.position + Vector3.up * (objectSize.y / 2f), objectSize);
     }
 }

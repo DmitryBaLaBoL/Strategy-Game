@@ -23,6 +23,10 @@ public class Building : MonoBehaviour
     public Material canBuildMaterial;
     public Material cannotBuildMaterial;
 
+    [Header("Боевые характеристики")]
+    public int defensePower = 2;    // Защита здания
+    public bool isMainBuilding = false;
+
     private bool isBuilt = false;
     private Renderer previewRenderer;
 

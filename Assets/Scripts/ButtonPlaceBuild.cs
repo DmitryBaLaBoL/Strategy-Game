@@ -2,17 +2,21 @@ using UnityEngine;
 
 public class ButtonPlaceBuild : MonoBehaviour
 {
-    public LayerMask groundLayer;
+    [Header("Настройки размещения")]
+    public LayerMask groundLayer;    // Для зданий
+    public LayerMask waterLayer;     // Для кораблей
     public LayerMask obstacleLayer;
+
+    [Header("Тип объекта")]
+    public bool isShip = false;      // Если true - ставим корабль на воду, если false - здание на землю
 
     public void PlaceBuild()
     {
-       
-        GameObject buildingPrefab = GetSelectedBuildingPrefab();
+        GameObject selectedPrefab = GetSelectedBuildingPrefab();
 
-        if (buildingPrefab == null)
+        if (selectedPrefab == null)
         {
-            Debug.LogError("Не выбран префаб здания!");
+            Debug.LogError("Не выбран префаб!");
             return;
         }
 
@@ -24,46 +28,93 @@ public class ButtonPlaceBuild : MonoBehaviour
             return;
         }
 
-        // Получаем стоимость из компонента PlaceObjects в префабе
-        PlaceObjects prefabPlaceScript = buildingPrefab.GetComponent<PlaceObjects>();
-        if (prefabPlaceScript == null)
+        // Проверяем тип объекта и получаем стоимость
+        int woodCost = 0;
+        int stoneCost = 0;
+        int goldCost = 0;
+
+        if (isShip)
         {
-            Debug.LogError("У префаба нет компонента PlaceObjects!");
-            return;
-        }
-
-        int woodCost = prefabPlaceScript.woodCost;
-        int stoneCost = prefabPlaceScript.stoneCost;
-
-        // Проверяем достаточно ли ресурсов
-        if (resourceManager.GetWood() < woodCost || resourceManager.GetStone() < stoneCost)
-        {
-            Debug.Log($"Недостаточно ресурсов! Нужно: Дерева={woodCost}, Камня={stoneCost}");
-            return;
-        }
-
-        // Создаем экземпляр здания
-        GameObject newBuilding = Instantiate(buildingPrefab, Vector3.zero, Quaternion.identity);
-
-        // Настраиваем компонент PlaceObjects у нового здания
-        PlaceObjects placeScript = newBuilding.GetComponent<PlaceObjects>();
-        if (placeScript != null)
-        {
-            placeScript.layer = groundLayer;
-            placeScript.obstacleLayer = obstacleLayer;
-            // Стоимость уже скопирована из префаба, ничего не меняем
-
-            Collider buildingCollider = newBuilding.GetComponent<Collider>();
-            if (buildingCollider != null)
+            // Для корабля используем PlaceShip
+            PlaceShip prefabShipScript = selectedPrefab.GetComponent<PlaceShip>();
+            if (prefabShipScript == null)
             {
-                placeScript.objectSize = buildingCollider.bounds.size;
+                Debug.LogError("У префаба корабля нет компонента PlaceShip!");
+                return;
+            }
+            woodCost = prefabShipScript.woodCost;
+            stoneCost = prefabShipScript.stoneCost;
+            goldCost = prefabShipScript.goldCost;
+
+            // Проверяем ресурсы для корабля
+            if (resourceManager.GetWood() < woodCost ||
+                resourceManager.GetStone() < stoneCost ||
+                resourceManager.GetGold() < goldCost)
+            {
+                Debug.Log($"Недостаточно ресурсов для корабля! Нужно: 🌲={woodCost}, 🪨={stoneCost}, 💛={goldCost}");
+                return;
+            }
+        }
+        else
+        {
+            // Для здания используем PlaceObjects
+            PlaceObjects prefabPlaceScript = selectedPrefab.GetComponent<PlaceObjects>();
+            if (prefabPlaceScript == null)
+            {
+                Debug.LogError("У префаба здания нет компонента PlaceObjects!");
+                return;
+            }
+            woodCost = prefabPlaceScript.woodCost;
+            stoneCost = prefabPlaceScript.stoneCost;
+
+            // Проверяем ресурсы для здания
+            if (resourceManager.GetWood() < woodCost || resourceManager.GetStone() < stoneCost)
+            {
+                Debug.Log($"Недостаточно ресурсов для здания! Нужно: 🌲={woodCost}, 🪨={stoneCost}");
+                return;
             }
         }
 
-        Debug.Log($"Здание выбрано для постройки. Стоимость: Дерева={woodCost}, Камня={stoneCost}");
+        // Создаем экземпляр
+        GameObject newObject = Instantiate(selectedPrefab, Vector3.zero, Quaternion.identity);
+
+        if (isShip)
+        {
+            // Настраиваем корабль
+            PlaceShip placeScript = newObject.GetComponent<PlaceShip>();
+            if (placeScript != null)
+            {
+                placeScript.waterLayer = waterLayer;
+                placeScript.obstacleLayer = obstacleLayer;
+
+                Collider shipCollider = newObject.GetComponent<Collider>();
+                if (shipCollider != null)
+                {
+                    placeScript.shipSize = shipCollider.bounds.size;
+                }
+            }
+            Debug.Log($"Корабль выбран для постройки. Стоимость: 🌲={woodCost}, 🪨={stoneCost}, 💛={goldCost}");
+        }
+        else
+        {
+            // Настраиваем здание
+            PlaceObjects placeScript = newObject.GetComponent<PlaceObjects>();
+            if (placeScript != null)
+            {
+                placeScript.layer = groundLayer;
+                placeScript.obstacleLayer = obstacleLayer;
+
+                Collider buildingCollider = newObject.GetComponent<Collider>();
+                if (buildingCollider != null)
+                {
+                    placeScript.objectSize = buildingCollider.bounds.size;
+                }
+            }
+            Debug.Log($"Здание выбрано для постройки. Стоимость: 🌲={woodCost}, 🪨={stoneCost}");
+        }
     }
 
-    // Временный метод - потом заменишь на выбор из UI
+    // Метод для выбора префаба (можно расширить для выбора разных кораблей/зданий)
     public GameObject selectedPrefab;
     private GameObject GetSelectedBuildingPrefab()
     {
